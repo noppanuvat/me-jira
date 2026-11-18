@@ -67,6 +67,9 @@ function resolveOpenRouterModel(rawModel) {
   if (clean === 'minimax-m3.1-flash' || clean === 'minimax-m3.1-flash:free') {
     return 'minimax/minimax-m3.1-flash:free';
   }
+  if (clean === 'gpt-6.1-terra' || clean === 'gpt-6-1-terra') {
+    return 'openai/gpt-6.1-terra';
+  }
   return clean;
 }
 
