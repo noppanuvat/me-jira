@@ -477,7 +477,7 @@ async function fetchParentIssue(parentKey) {
   }
 }
 
-const server = http.createServer(async (req, res) => {
+async function handleRequest(req, res) {
   if (!req.url) {
     return sendJson(res, 400, { ok: false, message: 'Missing request URL' });
   }
@@ -491,7 +491,14 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
-  const requestUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  let requestUrl;
+  try {
+    const rawHost = typeof req.headers.host === 'string' ? req.headers.host.trim() : '';
+    const safeHost = /^[A-Za-z0-9.\-]+(:\d{1,5})?$/.test(rawHost) ? rawHost : 'localhost';
+    requestUrl = new URL(req.url, `http://${safeHost}`);
+  } catch (_error) {
+    return sendJson(res, 400, { ok: false, message: 'Invalid request URL' });
+  }
 
   if (req.method === 'GET' && requestUrl.pathname === '/health') {
     if (!isConfigured()) {
@@ -605,6 +612,21 @@ const server = http.createServer(async (req, res) => {
   }
 
   return sendJson(res, 404, { ok: false, message: 'Endpoint not found' });
+}
+
+const server = http.createServer((req, res) => {
+  handleRequest(req, res).catch((error) => {
+    process.stderr.write(`[request-error] ${error?.stack || error}\n`);
+    if (!res.headersSent) {
+      sendJson(res, 500, { ok: false, message: 'Internal server error' });
+    } else {
+      try {
+        res.end();
+      } catch (_endError) {
+        // socket already closed
+      }
+    }
+  });
 });
 
 server.listen(PORT, () => {
