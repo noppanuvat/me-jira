@@ -230,6 +230,16 @@ function buildGeminiPrompt({ issue, style, clarifyingAnswers = [] }) {
     '- Produce exactly 3-6 subtasks and 3-6 test cases.',
     '- Ensure output is actionable for engineering and QA teams.'
   ];
+  const thirdPartyErrorRules = [
+    '- 3rd Party Error Mapping (when integrating external services / 3rd party APIs):',
+    '  Scenario 1: 3rd party returns HTTP 200 and response code = "00" → Frontend 200, Success.',
+    '  Scenario 2: 3rd party returns HTTP 200 but response code ≠ "00" with a handleable business case → Frontend 422, B (Business), error code B00xxxx (depends on case). Example: code "20" → handle per requirement.',
+    '  Scenario 3: 3rd party returns HTTP 200 but response code ≠ "00" and not handled → Frontend 500, D (Downstream return error), error code D00xxxx.',
+    '  Scenario 4: 3rd party down (timeout, connection refused, no response) → Frontend 500, E (Failure), error code E999999.',
+    '  Note: All scenarios return HTTP 200 from 3rd party but response code ≠ "00".',
+    '  Caution: map HTTP 503 → 500 when 3rd party is down; map HTTP 422, 503 → 500 when response code is not "00" and no handler exists.'
+  ];
+
   const backendRules = [
     '- Backend content must explicitly align with Spring Boot Java, Redis, SQL Server, and GraphQL where relevant.'
   ];
@@ -317,6 +327,7 @@ function buildGeminiPrompt({ issue, style, clarifyingAnswers = [] }) {
     '}',
     'Rules:',
     ...commonRules,
+    ...thirdPartyErrorRules,
     ...parentContextRules,
     ...apiContractRules,
     ...(isBackend
