@@ -1,0 +1,1625 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jira AI Requirement Analyzer — สำหรับ Dev & QA</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://unpkg.com/vue@3.4.21/dist/vue.global.prod.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./jira_ai_requirement_analyzer_dev_qa.css" />
+</head>
+<body class="min-h-screen flex flex-col bg-slate-50 text-slate-900">
+  <div id="app" v-cloak class="flex-1 flex flex-col">
+    <!-- Top Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-sm">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="text-base sm:text-lg font-bold text-slate-900 tracking-tight">Jira AI Spec &amp; QA Generator</h1>
+              <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                AI Analyzer
+              </span>
+            </div>
+            <p class="text-xs text-slate-500">วิเคราะห์การ์ด Jira ด้วย AI แปลงเป็น Task สำหรับ Developer และ Test Cases สำหรับ QA พร้อมทำงานต่อทันที</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 sm:gap-3">
+          <!-- Connection Status -->
+          <div
+            class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium"
+            :class="jiraConnectionBadgeClass"
+          >
+            <span class="w-2 h-2 rounded-full" :class="jiraConnectionDotClass"></span>
+            <span>{{ jiraConnectionLabel }}</span>
+          </div>
+
+          <!-- Custom Requirement Modal Button -->
+          <button
+            type="button"
+            @click="showRawModal = true"
+            :disabled="!hasAnalysisResult"
+            :class="[
+              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs sm:text-sm font-medium transition shadow-sm',
+              hasAnalysisResult
+                ? 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+            ]"
+          >
+            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            <span>แก้ไขข้อมูลดิบ Jira</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-[115rem] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <!-- Control Panel Card (Jira Input + Style Selection + AI Model + Analyze Button) -->
+      <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-end">
+          
+          <!-- 1. Input เลขการ์ด Jira -->
+          <div class="lg:col-span-4">
+            <label for="jira-key-input" class="block text-sm font-semibold text-slate-700 mb-1.5">
+              1. เลขการ์ด Jira (Jira Issue Key)
+            </label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-blue-600">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M11.53 2c0 2.4 1.97 4.35 4.35 4.35h1.78v1.7c0 2.4 1.94 4.34 4.34 4.35V2.84a.84.84 0 00-.84-.84h-9.63zM6.77 6.8a4.362 4.362 0 004.34 4.34h1.8v1.72a4.362 4.362 0 004.34 4.34V7.63a.84.84 0 00-.83-.83H6.77zM2 11.6c0 2.4 1.95 4.34 4.35 4.35h1.78v1.72c.01 2.39 1.95 4.34 4.34 4.33v-9.57a.84.84 0 00-.84-.83H2z"/>
+                </svg>
+              </div>
+              <input
+                id="jira-key-input"
+                v-model="jiraInput"
+                @keyup.enter="analyzeTicket"
+                type="text"
+                placeholder="เช่น PAY-1042, AUTH-208, ORD-519"
+                class="w-full pl-11 pr-20 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition uppercase"
+              />
+              <button
+                v-if="jiraInput"
+                type="button"
+                @click="jiraInput = ''"
+                class="absolute inset-y-0 right-2 px-2 text-xs text-slate-400 hover:text-slate-600"
+                title="ล้างค่า"
+              >
+                ล้าง
+              </button>
+            </div>
+            <p v-if="jiraFetchError" class="mt-1.5 text-xs text-rose-600">
+              {{ jiraFetchError }}
+            </p>
+          </div>
+
+          <!-- 2. Selection เลือก Style การเขียนการ์ด (Frontend / Backend) -->
+          <div class="lg:col-span-4">
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5">
+              2. เลือก Style การเขียนการ์ด (Card Output Style)
+            </label>
+            <div class="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl border border-slate-200">
+              <button
+                type="button"
+                @click="selectStyle('frontend')"
+                :class="[
+                  'flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-all',
+                  selectedStyle === 'frontend'
+                    ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                ]"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <span>Frontend Style</span>
+              </button>
+
+              <button
+                type="button"
+                @click="selectStyle('backend')"
+                :class="[
+                  'flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-all',
+                  selectedStyle === 'backend'
+                    ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                ]"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                </svg>
+                <span>Backend Style</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 3. เลือก AI Model & ปุ่มวิเคราะห์ -->
+          <div class="lg:col-span-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
+            <div class="flex-1">
+              <label for="ai-model-select" class="block text-sm font-semibold text-slate-700 mb-1.5">
+                3. AI Model ที่ใช้วิเคราะห์
+              </label>
+              <select
+                id="ai-model-select"
+                v-model="selectedModel"
+                class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option v-for="m in aiModels" :key="m.id" :value="m.id">
+                  {{ m.name }} ({{ m.badge }})
+                </option>
+              </select>
+            </div>
+
+            <button
+              type="button"
+              @click="analyzeTicket"
+              :disabled="isAnalyzing || !jiraInput.trim()"
+              class="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white font-semibold text-sm shadow-sm hover:shadow transition cursor-pointer shrink-0 h-[42px]"
+            >
+              <svg v-if="!isAnalyzing" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <svg v-else class="w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              <span>{{ isAnalyzing ? 'กำลังวิเคราะห์...' : 'วิเคราะห์การ์ด' }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sample Presets Bar -->
+        <div class="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+
+          <div class="flex items-center gap-2 text-xs text-slate-500">
+            <span>กำลังแสดงผลสไตล์:</span>
+            <span
+              :class="[
+                'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-semibold',
+                selectedStyle === 'frontend'
+                  ? 'bg-blue-100 text-blue-800'
+                  : 'bg-indigo-100 text-indigo-800'
+              ]"
+            >
+              {{ selectedStyle === 'frontend' ? '🎨 Frontend Card (UI / State / Components)' : '⚙️ Backend Card (API / DB / Logic)' }}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Loading Progress Stepper when analyzing -->
+      <section v-if="isAnalyzing" class="bg-white rounded-2xl border border-blue-200 shadow-sm p-6">
+        <div class="max-w-xl mx-auto text-center space-y-4">
+          <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-50 text-blue-600">
+            <svg class="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-base font-bold text-slate-900">{{ analysisSteps[analysisStepIndex] }}</h2>
+            <p class="text-xs text-slate-500 mt-1">
+              ใช้โมเดล {{ currentModelObj.name }} แปลงข้อมูลเป็นรูปแบบ {{ selectedStyle === 'frontend' ? 'Frontend' : 'Backend' }} + QA Test Cases
+            </p>
+          </div>
+          <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+            <div
+              class="bg-gradient-to-r from-blue-600 to-indigo-600 h-full transition-all duration-300"
+              :style="{ width: ((analysisStepIndex + 1) / analysisSteps.length) * 100 + '%' }"
+            ></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Results Workspace -->
+      <div v-else class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Left Column: Original Jira Context & AI Readiness Summary (4 Cols) -->
+        <aside class="lg:col-span-4 space-y-5">
+          <!-- Jira Original Card Box -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <template v-if="hasAnalysisResult">
+            <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded bg-blue-500/20 border border-blue-400/30 text-blue-300 font-mono text-xs font-bold">
+                  {{ currentTicket.key }}
+                </span>
+                <span class="text-xs text-slate-300 font-medium">{{ currentTicket.type }}</span>
+              </div>
+              <span
+                :class="[
+                  'px-2 py-0.5 rounded-full text-xs font-semibold',
+                  currentTicket.priority === 'High' || currentTicket.priority === 'Critical'
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-400/30'
+                    : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
+                ]"
+              >
+                {{ currentTicket.priority }} Priority
+              </span>
+            </div>
+
+            <div class="p-5 space-y-4">
+              <div>
+                <h2 class="text-base font-bold text-slate-900 leading-snug">
+                  {{ currentTicket.title }}
+                </h2>
+                <div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                  <span>ผู้แจ้ง: <strong class="text-slate-700">{{ currentTicket.reporter }}</strong></span>
+                  <span>•</span>
+                  <span>Sprint: <strong class="text-slate-700">{{ currentTicket.sprint }}</strong></span>
+                </div>
+              </div>
+
+              <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-700 space-y-1.5 leading-relaxed">
+                <div class="font-semibold text-slate-900 flex items-center justify-between">
+                  <span>รายละเอียดจาก Jira (Raw Requirement):</span>
+                  <button
+                    type="button"
+                    @click="showRawModal = true"
+                    class="text-blue-600 hover:underline font-medium"
+                  >
+                    แก้ไข
+                  </button>
+                </div>
+                <p class="whitespace-pre-line text-slate-600">{{ currentTicket.rawDescription }}</p>
+              </div>
+
+              <!-- AI Ambiguity & Risk Radar -->
+              <div class="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 text-xs space-y-2">
+                <div class="flex items-center gap-1.5 font-bold text-amber-900">
+                  <svg class="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span>จุดที่ AI พบว่าควรระวัง / ตกหล่นใน Requirement</span>
+                </div>
+                <ul class="space-y-1 text-amber-800 pl-4 list-disc">
+                  <li v-for="(gap, idx) in activeStyleSpec.missingPoints" :key="idx">
+                    {{ gap }}
+                  </li>
+                </ul>
+              </div>
+
+              <!-- Estimation Summary -->
+              <div class="grid grid-cols-3 gap-2 pt-1">
+                <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                  <div class="text-[11px] text-slate-500">Story Points</div>
+                  <div class="text-base font-bold text-slate-900 mt-0.5">{{ activeStyleSpec.storyPoints }} SP</div>
+                </div>
+                <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                  <div class="text-[11px] text-slate-500">Dev Sub-tasks</div>
+                  <div class="text-base font-bold text-blue-600 mt-0.5">{{ activeStyleSpec.subtasks.length }} งาน</div>
+                </div>
+                <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                  <div class="text-[11px] text-slate-500">QA Test Cases</div>
+                  <div class="text-base font-bold text-emerald-600 mt-0.5">{{ activeStyleSpec.testCases.length }} เคส</div>
+                </div>
+              </div>
+            </div>
+            </template>
+            <template v-else>
+              <div class="p-6 min-h-[280px] flex items-center justify-center">
+                <div class="text-center space-y-2">
+                  <div class="text-sm font-semibold text-slate-700">ยังไม่มีผลวิเคราะห์</div>
+                  <p class="text-xs text-slate-500">กรอก Jira Issue Key แล้วกด "วิเคราะห์การ์ด" เพื่อแสดงผลใน workspace</p>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Quick Export / Sync Actions -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">นำข้อมูลไปใช้งานต่อทันที</h3>
+            <div class="grid grid-cols-1 gap-2.5">
+              <button
+                type="button"
+                @click="copyJiraMarkdown"
+                :disabled="!hasAnalysisResult"
+                class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-semibold transition"
+              >
+                <span class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                  </svg>
+                  <span>คัดลอกการ์ด ({{ selectedStyle.toUpperCase() }} + QA) เป็น Markdown</span>
+                </span>
+                <span class="text-[11px] px-2 py-0.5 rounded bg-white/10 text-slate-200">Copy</span>
+              </button>
+
+              <button
+                type="button"
+                @click="exportTestCasesCsv"
+                :disabled="!hasAnalysisResult"
+                class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold transition"
+              >
+                <span class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>ดาวน์โหลด QA Test Cases (.CSV)</span>
+                </span>
+                <span class="text-[11px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">CSV</span>
+              </button>
+
+              <button
+                type="button"
+                @click="pushToJiraSimulation"
+                :disabled="!hasAnalysisResult"
+                class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs sm:text-sm font-semibold transition"
+                title="โหมดนี้เป็น Read-only ยังไม่เปิดเขียนกลับ Jira"
+              >
+                <span class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <span>โหมด Read-only: ยังไม่อัปเดตข้อมูลกลับการ์ด {{ hasAnalysisResult ? currentTicket.key : '-' }}</span>
+                </span>
+                <span class="text-[11px] px-2 py-0.5 rounded bg-slate-200 text-slate-700">Read-only</span>
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Right Column: Generated Dev & QA Actionable Workspace (8 Cols) -->
+        <section class="lg:col-span-8 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <!-- Workspace Header + Role Tabs -->
+          <div class="border-b border-slate-200 bg-slate-50/70 px-5 pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div class="flex items-center gap-1 overflow-x-auto">
+              <button
+                type="button"
+                @click="activeRoleTab = 'dev'"
+                :class="[
+                  'inline-flex items-center gap-2 px-4 py-2.5 border-b-2 text-xs sm:text-sm font-bold transition whitespace-nowrap',
+                  activeRoleTab === 'dev'
+                    ? 'border-blue-600 text-blue-600 bg-white rounded-t-xl'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                ]"
+              >
+                <span>💻 สำหรับ Developer ({{ selectedStyle === 'frontend' ? 'Frontend Style' : 'Backend Style' }})</span>
+                <span class="px-2 py-0.5 rounded-full text-[11px] bg-blue-50 text-blue-700">
+                  {{ completedSubtasksCount }}/{{ hasAnalysisResult && activeStyleSpec ? activeStyleSpec.subtasks.length : 0 }}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                @click="activeRoleTab = 'qa'"
+                :class="[
+                  'inline-flex items-center gap-2 px-4 py-2.5 border-b-2 text-xs sm:text-sm font-bold transition whitespace-nowrap',
+                  activeRoleTab === 'qa'
+                    ? 'border-emerald-600 text-emerald-700 bg-white rounded-t-xl'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                ]"
+              >
+                <span>🧪 สำหรับ QA (Test Cases &amp; AC)</span>
+                <span class="px-2 py-0.5 rounded-full text-[11px] bg-emerald-50 text-emerald-700">
+                  {{ hasAnalysisResult && activeStyleSpec ? activeStyleSpec.testCases.length : 0 }} เคส
+                </span>
+              </button>
+
+              <button
+                type="button"
+                @click="activeRoleTab = 'markdown'"
+                :class="[
+                  'inline-flex items-center gap-2 px-4 py-2.5 border-b-2 text-xs sm:text-sm font-bold transition whitespace-nowrap',
+                  activeRoleTab === 'markdown'
+                    ? 'border-indigo-600 text-indigo-700 bg-white rounded-t-xl'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                ]"
+              >
+                <span>📄 พรีวิว Jira Card Markdown</span>
+              </button>
+            </div>
+
+            <!-- Style Switch Pill right inside output header -->
+            <div class="pb-3 sm:pb-2 flex items-center gap-2">
+              <span class="text-[11px] text-slate-400 font-medium">สลับมุมมอง:</span>
+              <button
+                type="button"
+                @click="selectStyle(selectedStyle === 'frontend' ? 'backend' : 'frontend')"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-sm transition"
+              >
+                <span>เปลี่ยนเป็น {{ selectedStyle === 'frontend' ? 'Backend Style ⚙️' : 'Frontend Style 🎨' }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- TAB 1: DEVELOPER VIEW (Frontend or Backend Style) -->
+          <div v-if="activeRoleTab === 'dev'" class="p-5 sm:p-6 space-y-6">
+            <template v-if="hasAnalysisResult">
+            <!-- Style Banner -->
+            <div
+              :class="[
+                'p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3',
+                selectedStyle === 'frontend'
+                  ? 'bg-gradient-to-r from-blue-50 to-sky-50 border-blue-200'
+                  : 'bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200'
+              ]"
+            >
+              <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                  <span
+                    :class="[
+                      'px-2.5 py-0.5 rounded-md text-xs font-bold uppercase',
+                      selectedStyle === 'frontend' ? 'bg-blue-600 text-white' : 'bg-indigo-600 text-white'
+                    ]"
+                  >
+                    {{ selectedStyle === 'frontend' ? 'Frontend Developer Spec' : 'Backend Developer Spec' }}
+                  </span>
+                  <span class="text-xs text-slate-500">วิเคราะห์ด้วย {{ currentModelObj.name }}</span>
+                </div>
+                <p class="text-xs sm:text-sm font-medium text-slate-800">
+                  {{ activeStyleSpec.summary }}
+                </p>
+              </div>
+            </div>
+
+            <!-- Architecture / Technical Breakdown Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div
+                v-for="(sec, sIdx) in activeStyleSpec.architectureSections"
+                :key="sIdx"
+                class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2.5"
+              >
+                <div class="flex items-center justify-between">
+                  <h3 class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full" :class="selectedStyle === 'frontend' ? 'bg-blue-600' : 'bg-indigo-600'"></span>
+                    <span>{{ sec.title }}</span>
+                  </h3>
+                  <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600">
+                    {{ sec.badge }}
+                  </span>
+                </div>
+                <ul class="space-y-1.5 text-xs text-slate-700">
+                  <li v-for="(item, iIdx) in sec.items" :key="iIdx" class="flex items-start gap-2">
+                    <span class="text-blue-600 font-bold mt-0.5">•</span>
+                    <span>{{ item }}</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div
+              v-if="selectedStyle === 'frontend'"
+              class="space-y-2"
+            >
+              <div class="flex items-center justify-between">
+                <h3 class="text-sm font-bold text-slate-900">State Diagram (Mermaid)</h3>
+                <button
+                  v-if="resolveFrontendStateDiagramMermaid(activeStyleSpec)"
+                  type="button"
+                  @click="copyTextToClipboard(resolveFrontendStateDiagramMermaid(activeStyleSpec), 'คัดลอก Mermaid diagram แล้ว')"
+                  class="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                >
+                  คัดลอก Mermaid
+                </button>
+              </div>
+              <pre
+                v-if="resolveFrontendStateDiagramMermaid(activeStyleSpec)"
+                class="p-4 rounded-xl bg-slate-900 text-slate-100 text-xs font-mono overflow-x-auto custom-scrollbar leading-relaxed whitespace-pre-wrap"
+              ><code>{{ '```mermaid\n' + resolveFrontendStateDiagramMermaid(activeStyleSpec) + '\n```' }}</code></pre>
+              <p v-else class="text-xs text-slate-500">ยังไม่มี Mermaid diagram ที่สร้างได้จากข้อมูล state ปัจจุบัน</p>
+              <ul class="space-y-1.5 text-xs text-slate-700">
+                <li
+                  v-for="(item, idx) in pickArchitectureItems(activeStyleSpec.architectureSections, ['state diagram', 'state', 'สถานะ'], 0)"
+                  :key="`state-item-${idx}`"
+                  class="flex items-start gap-2"
+                >
+                  <span class="text-blue-600 font-bold mt-0.5">•</span>
+                  <span>{{ item }}</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- UI Copy (Frontend style only) -->
+            <div
+              v-if="selectedStyle === 'frontend' && activeStyleSpec.uiCopy && activeStyleSpec.uiCopy.length > 0"
+              class="space-y-2"
+            >
+              <div class="flex items-center justify-between">
+                <h3 class="text-sm font-bold text-slate-900">💬 UI Copy</h3>
+                <button
+                  type="button"
+                  @click="copyUiCopy"
+                  class="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                >
+                  คัดลอกทั้งหมด
+                </button>
+              </div>
+              <div class="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                <div class="overflow-x-auto custom-scrollbar">
+                  <table class="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr class="bg-slate-100 text-slate-700 border-b border-slate-200">
+                        <th class="py-2.5 px-3 font-bold whitespace-nowrap">Context</th>
+                        <th class="py-2.5 px-3 font-bold whitespace-nowrap">Element</th>
+                        <th class="py-2.5 px-3 font-bold">ไทย</th>
+                        <th class="py-2.5 px-3 font-bold">English</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                      <tr v-for="(copy, copyIdx) in activeStyleSpec.uiCopy" :key="`copy-${copyIdx}`" class="hover:bg-slate-50/80">
+                        <td class="py-2.5 px-3 align-top whitespace-nowrap">
+                          <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                            {{ copy.context }}
+                          </span>
+                        </td>
+                        <td class="py-2.5 px-3 align-top font-mono text-slate-600 whitespace-nowrap">{{ copy.element }}</td>
+                        <td class="py-2.5 px-3 align-top text-slate-800">{{ copy.textTh || '-' }}</td>
+                        <td class="py-2.5 px-3 align-top text-slate-600">{{ copy.textEn || '-' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- API Contract (Backend style only) -->
+            <div
+              v-if="selectedStyle === 'backend' && activeStyleSpec.apiContract && activeStyleSpec.apiContract.length > 0"
+              class="space-y-3"
+            >
+              <div class="flex items-center justify-between">
+                <h3 class="text-sm font-bold text-slate-900">🔌 API Contract</h3>
+                <span class="text-[11px] px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  {{ activeStyleSpec.apiContract.length }} endpoints
+                </span>
+              </div>
+
+              <div
+                v-for="(api, apiIdx) in activeStyleSpec.apiContract"
+                :key="`api-${apiIdx}`"
+                class="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden"
+              >
+                <div class="px-4 py-3 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span
+                      :class="[
+                        'px-2 py-0.5 rounded text-[11px] font-bold font-mono shrink-0',
+                        api.method === 'GET' ? 'bg-emerald-100 text-emerald-800'
+                          : api.method === 'POST' ? 'bg-blue-100 text-blue-800'
+                          : api.method === 'PUT' || api.method === 'PATCH' ? 'bg-amber-100 text-amber-800'
+                          : api.method === 'DELETE' ? 'bg-rose-100 text-rose-800'
+                          : 'bg-slate-200 text-slate-700'
+                      ]"
+                    >
+                      {{ api.method }}
+                    </span>
+                    <code class="text-xs font-mono font-semibold text-slate-900 truncate">{{ api.endpoint }}</code>
+                  </div>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <span
+                      :class="[
+                        'text-[11px] px-2 py-0.5 rounded border',
+                        api.authRequired
+                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-slate-100 text-slate-600 border-slate-200'
+                      ]"
+                    >
+                      {{ api.authRequired ? '🔒 Auth required' : 'Public' }}
+                    </span>
+                    <button
+                      type="button"
+                      @click="copyApiContract(api)"
+                      class="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                    >
+                      คัดลอก
+                    </button>
+                  </div>
+                </div>
+
+                <div class="p-4 space-y-3">
+                  <p class="text-xs text-slate-700">{{ api.description }}</p>
+
+                  <div v-if="api.requestBody" class="space-y-1">
+                    <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Request Body</div>
+                    <pre class="p-3 rounded-lg bg-slate-900 text-slate-100 text-[11px] font-mono overflow-x-auto custom-scrollbar"><code>{{ api.requestBody }}</code></pre>
+                  </div>
+
+                  <div v-if="api.responseBody" class="space-y-1">
+                    <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Response Body</div>
+                    <pre class="p-3 rounded-lg bg-slate-900 text-slate-100 text-[11px] font-mono overflow-x-auto custom-scrollbar"><code>{{ api.responseBody }}</code></pre>
+                  </div>
+
+                  <div v-if="api.errorCodes.length > 0" class="space-y-1">
+                    <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Error Codes</div>
+                    <div class="border border-slate-200 rounded-lg overflow-hidden bg-white">
+                      <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr class="bg-slate-50 border-b border-slate-200">
+                            <th class="py-2 px-3 font-bold text-slate-600 whitespace-nowrap">Exception Class</th>
+                            <th class="py-2 px-3 font-bold text-slate-600 whitespace-nowrap w-24">HTTP Code</th>
+                            <th class="py-2 px-3 font-bold text-slate-600">Condition</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200">
+                          <tr v-for="(err, errIdx) in api.errorCodes" :key="`err-${apiIdx}-${errIdx}`">
+                            <td class="py-2 px-3 font-mono font-bold text-rose-700 whitespace-nowrap align-top">{{ err.exceptionClass }}</td>
+                            <td class="py-2 px-3 font-mono text-slate-700 whitespace-nowrap align-top">{{ err.httpCode || '-' }}</td>
+                            <td class="py-2 px-3 text-slate-700">{{ err.condition }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            </template>
+            <template v-else>
+              <div class="min-h-[340px] rounded-xl border border-slate-200 bg-white flex items-center justify-center">
+                <p class="text-xs text-slate-500">ยังไม่มีข้อมูลสำหรับ Developer view</p>
+              </div>
+            </template>
+          </div>
+
+          <!-- TAB 2: QA / TESTER VIEW -->
+          <div v-else-if="activeRoleTab === 'qa'" class="p-5 sm:p-6 space-y-6">
+            <template v-if="hasAnalysisResult">
+              <!-- Acceptance Criteria (Gherkin) -->
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h3 class="text-sm font-bold text-slate-900">Acceptance Criteria (Gherkin Syntax)</h3>
+                    <p class="text-xs text-slate-500">ปรับตามบริบทของ {{ selectedStyle === 'frontend' ? 'Frontend UI Interaction' : 'Backend API & Data Validation' }}</p>
+                  </div>
+                  <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Given / When / Then
+                  </span>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3">
+                  <div
+                    v-for="(ac, acIdx) in activeStyleSpec.acceptanceCriteria"
+                    :key="acIdx"
+                    class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5"
+                  >
+                    <div class="font-bold text-slate-900">{{ ac.scenario }}</div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                      <div class="p-2 rounded-lg bg-white border border-slate-200/80">
+                        <span class="font-mono font-bold text-blue-600">GIVEN:</span>
+                        <p class="text-slate-700 mt-0.5">{{ ac.given }}</p>
+                      </div>
+                      <div class="p-2 rounded-lg bg-white border border-slate-200/80">
+                        <span class="font-mono font-bold text-amber-600">WHEN:</span>
+                        <p class="text-slate-700 mt-0.5">{{ ac.when }}</p>
+                      </div>
+                      <div class="p-2 rounded-lg bg-white border border-slate-200/80">
+                        <span class="font-mono font-bold text-emerald-600">THEN:</span>
+                        <p class="text-slate-700 mt-0.5">{{ ac.then }}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Filterable Test Cases Table -->
+              <div class="space-y-3">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h3 class="text-sm font-bold text-slate-900">ตาราง QA Test Cases พร้อมใช้งาน</h3>
+                    <p class="text-xs text-slate-500">คลิกสถานะเพื่ออัปเดตผลการทดสอบ (Pending / Pass / Fail)</p>
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <button
+                      v-for="filter in ['ALL', 'Positive', 'Negative', 'Edge Case']"
+                      :key="filter"
+                      type="button"
+                      @click="qaFilter = filter"
+                      :class="[
+                        'px-2.5 py-1 rounded-lg text-xs font-semibold transition',
+                        qaFilter === filter
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      ]"
+                    >
+                      {{ filter }}
+                    </button>
+                  </div>
+                </div>
+
+                <div class="border border-slate-200 rounded-xl overflow-hidden">
+                  <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr class="bg-slate-100 text-slate-700 border-b border-slate-200">
+                          <th class="py-2.5 px-3 font-bold">ID</th>
+                          <th class="py-2.5 px-3 font-bold">ประเภท</th>
+                          <th class="py-2.5 px-3 font-bold">Test Scenario &amp; ขั้นตอนทดสอบ</th>
+                          <th class="py-2.5 px-3 font-bold">ผลลัพธ์ที่คาดหวัง (Expected Result)</th>
+                          <th class="py-2.5 px-3 font-bold text-center">สถานะ</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-slate-200 bg-white">
+                        <tr v-for="tc in filteredTestCases" :key="tc.id" class="hover:bg-slate-50/80">
+                          <td class="py-3 px-3 font-mono font-bold text-slate-900 whitespace-nowrap align-top">
+                            {{ tc.id }}
+                          </td>
+                          <td class="py-3 px-3 whitespace-nowrap align-top">
+                            <span
+                              :class="[
+                                'px-2 py-0.5 rounded-full text-[11px] font-semibold',
+                                tc.type === 'Positive'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : tc.type === 'Negative'
+                                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+                              ]"
+                            >
+                              {{ tc.type }}
+                            </span>
+                          </td>
+                          <td class="py-3 px-3 align-top space-y-1 max-w-xs">
+                            <div class="font-bold text-slate-900">{{ tc.title }}</div>
+                            <div class="text-slate-500 whitespace-pre-line">{{ tc.steps }}</div>
+                          </td>
+                          <td class="py-3 px-3 text-slate-700 align-top max-w-xs">
+                            {{ tc.expected }}
+                          </td>
+                          <td class="py-3 px-3 text-center align-top whitespace-nowrap">
+                            <button
+                              type="button"
+                              @click="cycleTestStatus(tc)"
+                              :class="[
+                                'px-2.5 py-1 rounded-lg text-xs font-bold transition',
+                                tc.status === 'PASS'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : tc.status === 'FAIL'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                              ]"
+                            >
+                              {{ tc.status }}
+                            </button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <div class="min-h-[340px] rounded-xl border border-slate-200 bg-white flex items-center justify-center">
+                <p class="text-xs text-slate-500">ยังไม่มีข้อมูลสำหรับ QA view</p>
+              </div>
+            </template>
+          </div>
+
+          <!-- TAB 3: MARKDOWN PREVIEW FOR JIRA COMMENT / DESCRIPTION -->
+          <div v-else-if="activeRoleTab === 'markdown'" class="p-5 sm:p-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-sm font-bold text-slate-900">พรีวิว Markdown สำหรับนำไปวางใน Jira Card ({{ selectedStyle.toUpperCase() }} Style)</h3>
+                <p class="text-xs text-slate-500">รวม Spec สำหรับนำไป handoff ต่อใน Jira ได้ทันที</p>
+              </div>
+              <button
+                type="button"
+                @click="copyJiraMarkdown"
+                :disabled="!hasAnalysisResult"
+                class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition"
+              >
+                คัดลอก Markdown ทั้งหมด
+              </button>
+            </div>
+
+            <div
+              v-if="clarifyingQuestions.length > 0"
+              class="p-4 rounded-xl border border-amber-200 bg-amber-50/60 space-y-3"
+            >
+              <div class="space-y-1">
+                <h4 class="text-xs sm:text-sm font-bold text-amber-900">ตอบ Clarifying Questions ก่อนวิเคราะห์ซ้ำ</h4>
+                <p class="text-xs text-amber-800">กรอกคำตอบให้ครบทุกข้อ แล้วกดปุ่มเพื่อวิเคราะห์ใหม่โดยใช้คำตอบนี้เป็นบริบทเพิ่มเติม</p>
+              </div>
+
+              <div class="space-y-3">
+                <div v-for="(question, qIdx) in clarifyingQuestions" :key="`cq-${qIdx}`" class="space-y-1.5">
+                  <label class="block text-xs font-semibold text-amber-900">
+                    Q{{ qIdx + 1 }}: {{ question }}
+                  </label>
+                  <textarea
+                    v-model="clarifyingAnswers[buildClarifyingAnswerKey(question)]"
+                    rows="2"
+                    class="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    placeholder="พิมพ์คำตอบสำหรับข้อคำถามนี้..."
+                  ></textarea>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-end">
+                <button
+                  type="button"
+                  @click="analyzeTicket"
+                  :disabled="isAnalyzing || !allClarifyingAnswered"
+                  class="px-3.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-semibold transition"
+                >
+                  {{ isAnalyzing ? 'กำลังวิเคราะห์...' : 'วิเคราะห์ใหม่จากคำตอบ' }}
+                </button>
+              </div>
+            </div>
+            <pre class="p-4 rounded-xl bg-slate-900 text-slate-100 text-xs font-mono overflow-x-auto custom-scrollbar whitespace-pre-wrap leading-relaxed">{{ generatedMarkdown }}</pre>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- Modal: Edit Raw Jira Requirement -->
+    <div
+      v-if="showRawModal"
+      class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+      @click.self="showRawModal = false"
+    >
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-xl w-full overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+          <h2 class="text-base font-bold text-slate-900">แก้ไขรายละเอียดการ์ด Jira ({{ currentTicket.key }})</h2>
+          <button
+            type="button"
+            @click="showRawModal = false"
+            class="text-slate-400 hover:text-slate-600 text-sm font-bold px-2 py-1"
+          >
+            ✕
+          </button>
+        </div>
+        <div class="p-5 space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">หัวข้อการ์ด (Issue Summary)</label>
+            <input
+              v-model="currentTicket.title"
+              type="text"
+              class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">รายละเอียด (Raw Description จาก PO / BA)</label>
+            <textarea
+              v-model="currentTicket.rawDescription"
+              rows="5"
+              class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            ></textarea>
+          </div>
+        </div>
+        <div class="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            @click="showRawModal = false"
+            class="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-semibold"
+          >
+            ปิดหน้าต่าง
+          </button>
+          <button
+            type="button"
+            @click="saveRawAndReanalyze"
+            class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold"
+          >
+            บันทึกและวิเคราะห์ใหม่ด้วย AI
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div
+      v-if="toastMessage"
+      class="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg border border-slate-700 flex items-center gap-2.5 text-xs sm:text-sm font-medium"
+    >
+      <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+      <span>{{ toastMessage }}</span>
+    </div>
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          jiraInput: '',
+          // jiraApiBaseUrl: 'http://localhost:8787',
+          jiraApiBaseUrl: 'https://jira.meturr.online',
+          selectedStyle: 'frontend',
+          selectedModel: 'deepseek/deepseek-v4.1-flash-1017',
+          activeRoleTab: 'dev',
+          qaFilter: 'ALL',
+          jiraConnectionState: 'checking',
+          jiraConnectionDetail: '',
+          jiraFetchError: '',
+          isAnalyzing: false,
+          analysisStepIndex: 0,
+          analysisTimer: null,
+          showRawModal: false,
+          newSubtaskTitle: '',
+          clarifyingAnswers: {},
+          toastMessage: '',
+          toastTimer: null,
+          analysisSteps: [
+            'กำลังดึงข้อมูลการ์ดและ Acceptance Criteria จาก Jira Cloud API...',
+            'กำลังวิเคราะห์ช่องโหว่ของ Requirement และ Edge Cases ด้วย AI Model...',
+            'กำลังสร้าง Technical Spec & Sub-tasks ตาม Style ที่เลือก (Frontend / Backend)...',
+            'กำลังสร้างตาราง QA Test Cases และ Gherkin Scenarios พร้อมใช้งาน...'
+          ],
+          aiModels: [
+            { id: 'z-ai/glm-5.3-flash', name: 'GLM 5.3 Flash', badge: 'แนะนำ • OpenRouter • เร็ว' },
+            { id: 'minimax/minimax-m3.1-flash:free', name: 'MiniMax M3.1 Flash (Free)', badge: 'OpenRouter • ฟรี' },
+            { id: 'deepseek/deepseek-v4.1-flash-1017', name: 'Deepseek v4.1 Flash', badge: 'OpenRouter • เร็ว' },
+            { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', badge: 'แม่นยำสูง' },
+            { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite', badge: 'เร็ว • ประหยัด' }
+          ],
+          jiraTicketOverrides: {},
+          ticketSpecs: {}
+        };
+      },
+      computed: {
+        jiraConnectionBadgeClass() {
+          if (this.jiraConnectionState === 'connected') {
+            return 'bg-emerald-50 border-emerald-200 text-emerald-700';
+          }
+          if (this.jiraConnectionState === 'error') {
+            return 'bg-rose-50 border-rose-200 text-rose-700';
+          }
+          return 'bg-amber-50 border-amber-200 text-amber-700';
+        },
+        jiraConnectionDotClass() {
+          if (this.jiraConnectionState === 'connected') return 'bg-emerald-500';
+          if (this.jiraConnectionState === 'error') return 'bg-rose-500';
+          return 'bg-amber-500 animate-pulse';
+        },
+        jiraConnectionLabel() {
+          if (this.jiraConnectionState === 'connected') return 'Jira Cloud Connected';
+          if (this.jiraConnectionState === 'error') return 'Jira Cloud Disconnected';
+          return 'Jira Cloud Checking...';
+        },
+        currentModelObj() {
+          return this.aiModels.find(m => m.id === this.selectedModel) || this.aiModels[0];
+        },
+        currentTicket() {
+          const cleanKey = (this.jiraInput || '').trim().toUpperCase();
+          if (this.jiraTicketOverrides[cleanKey]) {
+            return this.jiraTicketOverrides[cleanKey];
+          }
+
+          return {
+            key: cleanKey || '-',
+            shortTitle: '',
+            type: '-',
+            priority: '-',
+            reporter: '-',
+            sprint: '-',
+            title: '',
+            rawDescription: ''
+          };
+        },
+        hasAnalysisResult() {
+          const cleanKey = (this.jiraInput || '').trim().toUpperCase();
+          if (!cleanKey) return false;
+          return Boolean(
+            this.jiraTicketOverrides[cleanKey] &&
+            this.ticketSpecs[cleanKey] &&
+            this.ticketSpecs[cleanKey][this.selectedStyle]
+          );
+        },
+        activeStyleSpec() {
+          const key = (this.jiraInput || '').trim().toUpperCase();
+          if (!key) return null;
+          if (this.ticketSpecs[key] && this.ticketSpecs[key][this.selectedStyle]) {
+            return this.ticketSpecs[key][this.selectedStyle];
+          }
+          return null;
+        },
+        completedSubtasksCount() {
+          if (!this.activeStyleSpec || !Array.isArray(this.activeStyleSpec.subtasks)) return 0;
+          return this.activeStyleSpec.subtasks.filter(t => t.done).length;
+        },
+        filteredTestCases() {
+          if (!this.activeStyleSpec || !Array.isArray(this.activeStyleSpec.testCases)) return [];
+          if (this.qaFilter === 'ALL') return this.activeStyleSpec.testCases;
+          return this.activeStyleSpec.testCases.filter(tc => tc.type === this.qaFilter);
+        },
+        clarifyingQuestions() {
+          const missingPoints = Array.isArray(this.activeStyleSpec?.missingPoints) ? this.activeStyleSpec.missingPoints : [];
+          return missingPoints
+            .map(v => String(v || '').trim())
+            .filter(v => /^clarifying question\s*:/i.test(v))
+            .map(v => v.replace(/^clarifying question\s*:\s*/i, '').trim())
+            .filter(Boolean);
+        },
+        openQuestions() {
+          const missingPoints = Array.isArray(this.activeStyleSpec?.missingPoints) ? this.activeStyleSpec.missingPoints : [];
+          return missingPoints
+            .map(v => String(v || '').trim())
+            .filter(Boolean)
+            .filter(v => !/^clarifying question\s*:/i.test(v));
+        },
+        allClarifyingAnswered() {
+          if (this.clarifyingQuestions.length === 0) return false;
+          return this.clarifyingQuestions.every(question => {
+            const key = this.buildClarifyingAnswerKey(question);
+            return Boolean(String(this.clarifyingAnswers[key] || '').trim());
+          });
+        },
+        generatedMarkdown() {
+          if (!this.hasAnalysisResult || !this.activeStyleSpec) {
+            return `# Jira AI Spec\n\n> ยังไม่มีผลวิเคราะห์\n\n- กรุณากรอก Jira Issue Key แล้วกดปุ่ม "วิเคราะห์การ์ด"`;
+          }
+          const spec = this.activeStyleSpec;
+          const styleLabel = this.selectedStyle === 'frontend' ? 'Frontend Developer' : 'Backend Developer';
+          const sections = Array.isArray(spec.architectureSections) ? spec.architectureSections : [];
+          const subtasksMd = (Array.isArray(spec.subtasks) ? spec.subtasks : [])
+            .map(t => `- [${t.done ? 'x' : ' '}] **[${t.tag}]** ${t.title} _(${t.estimate})_ — ${t.detail}`)
+            .join('\n') || '- ไม่มีข้อมูล';
+          const acMd = (Array.isArray(spec.acceptanceCriteria) ? spec.acceptanceCriteria : [])
+            .map(ac => `- **${ac.scenario}**\n  - **GIVEN:** ${ac.given}\n  - **WHEN:** ${ac.when}\n  - **THEN:** ${ac.then}`)
+            .join('\n');
+
+          const findSectionItems = (keywords) => {
+            const found = sections.find(sec => {
+              const title = String(sec?.title || '').toLowerCase();
+              return keywords.some(k => title.includes(k));
+            });
+            return Array.isArray(found?.items) ? found.items : [];
+          };
+          const sectionItemsByIndex = (idx) => (Array.isArray(sections[idx]?.items) ? sections[idx].items : []);
+          const pickItems = (preferredItems, fallbackIndex) => (
+            Array.isArray(preferredItems) && preferredItems.length > 0
+              ? preferredItems
+              : sectionItemsByIndex(fallbackIndex)
+          );
+
+          const flowItems = this.selectedStyle === 'backend'
+            ? pickItems(findSectionItems(['step-by-step flow', 'flow', 'workflow', 'ขั้นตอน']), 0)
+            : [];
+          const logicItems = this.selectedStyle === 'backend'
+            ? pickItems(findSectionItems(['business logic', 'logic', 'เงื่อนไข']), 1)
+            : [];
+          const edgeItems = this.selectedStyle === 'backend'
+            ? pickItems(findSectionItems(['edge case', 'risk', 'ข้อผิดพลาด', 'ความเสี่ยง']), 2)
+            : [];
+
+          const stateDiagramItems = this.selectedStyle === 'frontend'
+            ? pickItems(findSectionItems(['state diagram', 'state', 'สถานะ']), 0)
+            : [];
+          const uxBehaviorItems = this.selectedStyle === 'frontend'
+            ? pickItems(findSectionItems(['ux behavior', 'ux', 'interaction', 'พฤติกรรม']), 1)
+            : [];
+          const pageItems = this.selectedStyle === 'frontend'
+            ? pickItems(findSectionItems(['page', 'screen', 'view', 'หน้า']), 2)
+            : [];
+
+          const toBullets = (items, fallback = '- ไม่มีข้อมูล') =>
+            (Array.isArray(items) && items.length > 0
+              ? items.map(item => `- ${item}`).join('\n')
+              : fallback);
+          const stateDiagramMermaid = this.selectedStyle === 'frontend'
+            ? this.resolveFrontendStateDiagramMermaid(spec)
+            : '';
+          const stateDiagramMermaidBlock = stateDiagramMermaid
+            ? `\`\`\`mermaid\n${stateDiagramMermaid}\n\`\`\`\n\n`
+            : '';
+
+          const clarifyingSection = this.clarifyingQuestions.length > 0
+            ? `
+## ❓ Clarifying Questions
+${this.clarifyingQuestions.map(q => `- ${q}`).join('\n')}
+`
+            : '';
+
+          const openPointsSection = this.openQuestions.length > 0
+            ? `
+## Open Questions
+${this.openQuestions.map(p => `- ${p}`).join('\n')}
+`
+            : '';
+
+          const apiContractMd = this.selectedStyle === 'backend' && Array.isArray(spec.apiContract) && spec.apiContract.length > 0
+            ? spec.apiContract.map(api => {
+                const parts = [`### \`${api.method} ${api.endpoint}\``];
+                parts.push(`- ${api.description}`);
+                parts.push(`- **Auth:** ${api.authRequired ? 'Required' : 'Public'}`);
+                if (api.requestBody) parts.push('', '**Request Body:**', '```json', api.requestBody, '```');
+                if (api.responseBody) parts.push('', '**Response Body:**', '```json', api.responseBody, '```');
+                if (api.errorCodes.length > 0) {
+                  parts.push('', '| Exception Class | HTTP Code | Condition |', '|---|---|---|');
+                  api.errorCodes.forEach(err => parts.push(`| ${err.exceptionClass} | ${err.httpCode || '-'} | ${err.condition} |`));
+                }
+                return parts.join('\n');
+              }).join('\n\n')
+            : '';
+
+          const apiContractSection = apiContractMd
+            ? `
+## 🔌 API Contract
+${apiContractMd}
+`
+            : '';
+
+          const escapePipe = (text) => String(text || '').replace(/\|/g, '\\|');
+          const uiCopyMd = this.selectedStyle === 'frontend' && Array.isArray(spec.uiCopy) && spec.uiCopy.length > 0
+            ? [
+                '| Context | Element | ไทย | English |',
+                '|---|---|---|---|',
+                ...spec.uiCopy.map(c => `| ${escapePipe(c.context)} | ${escapePipe(c.element)} | ${escapePipe(c.textTh) || '-'} | ${escapePipe(c.textEn) || '-'} |`)
+              ].join('\n')
+            : '';
+
+          const uiCopySection = uiCopyMd
+            ? `
+## 💬 UI Copy
+${uiCopyMd}
+`
+            : '';
+
+          const backendBody = `## 🧾 Overview
+- ${spec.summary || '-'}
+
+## 🔄 Step-by-Step Flow
+${toBullets(flowItems)}
+
+## 🧠 Business Logic
+${toBullets(logicItems)}
+${apiContractSection}
+## ⚠️ Edge Cases
+${toBullets(edgeItems)}
+`;
+
+          const frontendBody = `## 🧾 Overview
+- ${spec.summary || '-'}
+
+## 🗺️ Page / Screen Breakdown
+${toBullets(pageItems)}
+
+## State Diagram
+${stateDiagramMermaidBlock}${toBullets(stateDiagramItems)}
+
+## UX Behavior
+${toBullets(uxBehaviorItems)}
+${uiCopySection}
+## Acceptance Criteria (Gherkin)
+${acMd || '- ไม่มีข้อมูล'}
+`;
+
+          return `# [${this.currentTicket.key}] ${this.currentTicket.title}
+> **Style:** ${styleLabel} | **AI Model:** ${this.currentModelObj.name} | **Story Points:** ${spec.storyPoints} SP
+
+${this.selectedStyle === 'backend' ? backendBody : frontendBody}
+${openPointsSection}${clarifyingSection}
+`;
+        }
+      },
+      mounted() {
+        this.checkJiraConnection();
+      },
+      methods: {
+        pickArchitectureItems(sections, keywords, fallbackIndex) {
+          const safeSections = Array.isArray(sections) ? sections : [];
+          const found = safeSections.find(sec => {
+            const title = String(sec?.title || '').toLowerCase();
+            return keywords.some(k => title.includes(k));
+          });
+          const preferred = Array.isArray(found?.items) ? found.items : [];
+          if (preferred.length > 0) return preferred;
+          return Array.isArray(safeSections[fallbackIndex]?.items) ? safeSections[fallbackIndex].items : [];
+        },
+        buildFallbackStateMermaid(stateItems) {
+          const items = (Array.isArray(stateItems) ? stateItems : [])
+            .map(item => String(item || '').trim())
+            .filter(Boolean);
+          if (items.length < 2) return '';
+
+          const nodeIds = items.map((_, idx) => `S${idx + 1}`);
+          const lines = ['flowchart TD'];
+          for (let i = 0; i < items.length; i++) {
+            const label = items[i]
+              .replace(/"/g, '\\"')
+              .replace(/\[/g, '(')
+              .replace(/\]/g, ')');
+            lines.push(`  ${nodeIds[i]}["${label}"]`);
+          }
+          for (let i = 0; i < nodeIds.length - 1; i++) {
+            lines.push(`  ${nodeIds[i]} --> ${nodeIds[i + 1]}`);
+          }
+          return lines.join('\n');
+        },
+        resolveFrontendStateDiagramMermaid(spec) {
+          if (!spec) return '';
+          const explicit = typeof spec.stateDiagramMermaid === 'string' ? spec.stateDiagramMermaid.trim() : '';
+          if (explicit) return explicit;
+          const sections = Array.isArray(spec.architectureSections) ? spec.architectureSections : [];
+          const stateItems = this.pickArchitectureItems(sections, ['state diagram', 'state', 'สถานะ'], 0);
+          return this.buildFallbackStateMermaid(stateItems);
+        },
+        async checkJiraConnection() {
+          this.jiraConnectionState = 'checking';
+          try {
+            const res = await fetch(`${this.jiraApiBaseUrl.replace(/\/$/, '')}/health`);
+            if (!res.ok) {
+              throw new Error(`Health check failed (${res.status})`);
+            }
+            const body = await res.json();
+            if (!body.ok) {
+              throw new Error(body.message || 'Proxy server is not ready');
+            }
+            this.jiraConnectionState = body.jiraConfigured ? 'connected' : 'error';
+            this.jiraConnectionDetail = body.message || '';
+          } catch (error) {
+            this.jiraConnectionState = 'error';
+            this.jiraConnectionDetail = error.message || 'Cannot connect to Jira proxy server';
+          }
+        },
+        adfNodeToText(node) {
+          if (!node) return '';
+          if (node.type === 'text') return node.text || '';
+          if (node.type === 'hardBreak') return '\n';
+          if (!Array.isArray(node.content)) return '';
+          const text = node.content.map(child => this.adfNodeToText(child)).join('');
+          return node.type === 'paragraph' ? `${text}\n` : text;
+        },
+        adfToPlainText(adf) {
+          if (!adf) return '';
+          if (typeof adf === 'string') return adf;
+          if (!Array.isArray(adf.content)) return '';
+          return adf.content.map(node => this.adfNodeToText(node)).join('').trim();
+        },
+        extractSprintName(fields) {
+          for (const [fieldKey, value] of Object.entries(fields || {})) {
+            if (!fieldKey.startsWith('customfield_') || !value) continue;
+            if (Array.isArray(value) && value.length > 0 && value[0] && value[0].name) {
+              return value[0].name;
+            }
+            if (value && typeof value === 'object' && value.name) {
+              return value.name;
+            }
+          }
+          return 'N/A';
+        },
+        mapJiraIssueToTicket(issue, issueKey, parent) {
+          const fields = issue.fields || {};
+          const issueTypeName = fields.issuetype?.name || 'Story';
+          const title = fields.summary || `Issue ${issueKey}`;
+          const rawDescription = this.adfToPlainText(fields.description) || 'ไม่มีรายละเอียดจาก Jira';
+          const reporterName = fields.reporter?.displayName || fields.reporter?.name || 'Unknown';
+          return {
+            key: issue.key || issueKey,
+            shortTitle: title,
+            type: issueTypeName,
+            priority: fields.priority?.name || 'Medium',
+            reporter: reporterName,
+            sprint: this.extractSprintName(fields),
+            title,
+            rawDescription,
+            parentKey: parent?.key || '',
+            parentTitle: parent?.summary || '',
+            parentDescription: this.adfToPlainText(parent?.description) || ''
+          };
+        },
+        async fetchJiraIssue(issueKey) {
+          const endpoint = `${this.jiraApiBaseUrl.replace(/\/$/, '')}/api/jira/issues/${encodeURIComponent(issueKey)}`;
+          const response = await fetch(endpoint);
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(payload.message || `โหลดข้อมูล Jira ไม่สำเร็จ (HTTP ${response.status})`);
+          }
+          if (!payload.ok || !payload.issue) {
+            throw new Error(payload.message || 'รูปแบบข้อมูลจาก Jira proxy ไม่ถูกต้อง');
+          }
+          return { issue: payload.issue, parent: payload.parent || null };
+        },
+        buildClarifyingAnswerKey(question) {
+          return `${this.currentTicket.key}::${this.selectedStyle}::${question}`;
+        },
+        collectClarifyingAnswers() {
+          return this.clarifyingQuestions
+            .map(question => {
+              const key = this.buildClarifyingAnswerKey(question);
+              const answer = String(this.clarifyingAnswers[key] || '').trim();
+              return { question, answer };
+            })
+            .filter(item => item.answer);
+        },
+        async analyzeWithAI(ticket) {
+          const endpoint = `${this.jiraApiBaseUrl.replace(/\/$/, '')}/api/ai/analyze`;
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              issue: ticket,
+              style: this.selectedStyle,
+              model: this.selectedModel || 'z-ai/glm-5.3-flash',
+              clarifyingAnswers: this.collectClarifyingAnswers()
+            })
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(payload.message || `วิเคราะห์ด้วย AI ไม่สำเร็จ (HTTP ${response.status})`);
+          }
+          if (!payload.ok || !payload.spec) {
+            throw new Error(payload.message || 'ข้อมูลตอบกลับจาก AI proxy ไม่ถูกต้อง');
+          }
+          return payload.spec;
+        },
+        normalizeAiSpecForUi(spec, ticket, style) {
+          const styleTag = style === 'backend' ? 'Backend' : 'Frontend';
+          const stylePrefix = style.toUpperCase().slice(0, 2);
+          const normalized = spec && typeof spec === 'object' ? spec : {};
+
+          const storyPoints = Number.isFinite(Number(normalized.storyPoints))
+            ? Number(normalized.storyPoints)
+            : 3;
+          const summary = typeof normalized.summary === 'string' && normalized.summary.trim()
+            ? normalized.summary.trim()
+            : `วิเคราะห์ ${ticket.key} สำเร็จด้วย AI`;
+
+          const missingPoints = Array.isArray(normalized.missingPoints)
+            ? normalized.missingPoints.filter(v => typeof v === 'string' && v.trim()).map(v => v.trim())
+            : [];
+
+          const architectureSections = Array.isArray(normalized.architectureSections)
+            ? normalized.architectureSections.map((section, i) => ({
+                title: typeof section?.title === 'string' && section.title.trim() ? section.title.trim() : `Architecture ${i + 1}`,
+                badge: typeof section?.badge === 'string' && section.badge.trim() ? section.badge.trim() : styleTag,
+                items: Array.isArray(section?.items)
+                  ? section.items.filter(v => typeof v === 'string' && v.trim()).map(v => v.trim())
+                  : []
+              }))
+            : [];
+
+          const subtasks = Array.isArray(normalized.subtasks)
+            ? normalized.subtasks.map((task, i) => ({
+                id: typeof task?.id === 'string' && task.id.trim() ? task.id.trim() : `${ticket.key}-${stylePrefix.toLowerCase()}-${i + 1}`,
+                title: typeof task?.title === 'string' && task.title.trim() ? task.title.trim() : `Sub-task ${i + 1}`,
+                detail: typeof task?.detail === 'string' && task.detail.trim() ? task.detail.trim() : '-',
+                estimate: typeof task?.estimate === 'string' && task.estimate.trim() ? task.estimate.trim() : '2h',
+                tag: typeof task?.tag === 'string' && task.tag.trim() ? task.tag.trim() : styleTag,
+                done: Boolean(task?.done)
+              }))
+            : [];
+
+          const acceptanceCriteria = Array.isArray(normalized.acceptanceCriteria)
+            ? normalized.acceptanceCriteria.map((ac, i) => ({
+                scenario: typeof ac?.scenario === 'string' && ac.scenario.trim() ? ac.scenario.trim() : `Scenario ${i + 1}`,
+                given: typeof ac?.given === 'string' && ac.given.trim() ? ac.given.trim() : '-',
+                when: typeof ac?.when === 'string' && ac.when.trim() ? ac.when.trim() : '-',
+                then: typeof ac?.then === 'string' && ac.then.trim() ? ac.then.trim() : '-'
+              }))
+            : [];
+
+          const testCases = Array.isArray(normalized.testCases)            ? normalized.testCases.map((tc, i) => {
+                const status = ['PENDING', 'PASS', 'FAIL'].includes(tc?.status) ? tc.status : 'PENDING';
+                return {
+                  id: typeof tc?.id === 'string' && tc.id.trim() ? tc.id.trim() : `TC-${stylePrefix}-${String(i + 1).padStart(2, '0')}`,
+                  type: typeof tc?.type === 'string' && tc.type.trim() ? tc.type.trim() : 'Positive',
+                  title: typeof tc?.title === 'string' && tc.title.trim() ? tc.title.trim() : `Test Case ${i + 1}`,
+                  steps: typeof tc?.steps === 'string' && tc.steps.trim() ? tc.steps.trim() : '-',
+                  expected: typeof tc?.expected === 'string' && tc.expected.trim() ? tc.expected.trim() : '-',
+                  status
+                };
+              })
+            : [];
+
+          const apiContract = style === 'backend' && Array.isArray(normalized.apiContract)
+            ? normalized.apiContract
+                .map((api, i) => ({
+                  method: typeof api?.method === 'string' && api.method.trim() ? api.method.trim().toUpperCase() : 'GET',
+                  endpoint: typeof api?.endpoint === 'string' && api.endpoint.trim() ? api.endpoint.trim() : '',
+                  description: typeof api?.description === 'string' && api.description.trim() ? api.description.trim() : '-',
+                  authRequired: api?.authRequired !== false,
+                  requestBody: typeof api?.requestBody === 'string' ? api.requestBody.trim() : '',
+                  responseBody: typeof api?.responseBody === 'string' ? api.responseBody.trim() : '',
+                  errorCodes: Array.isArray(api?.errorCodes)
+                    ? api.errorCodes
+                        .map(err => ({
+                          exceptionClass: typeof err?.exceptionClass === 'string' && err.exceptionClass.trim()
+                            ? err.exceptionClass.trim()
+                            : String(err?.code || '').trim(),
+                          httpCode: typeof err?.httpCode === 'number'
+                            ? String(err.httpCode)
+                            : (typeof err?.httpCode === 'string' ? err.httpCode.trim() : ''),
+                          condition: typeof err?.condition === 'string' && err.condition.trim() ? err.condition.trim() : '-'
+                        }))
+                        .filter(err => err.exceptionClass)
+                    : []
+                }))
+                .filter(api => api.endpoint)
+            : [];
+
+          const stateDiagramMermaid = style === 'frontend' && typeof normalized.stateDiagramMermaid === 'string'
+            ? normalized.stateDiagramMermaid.trim()
+            : '';
+
+          const uiCopy = style === 'frontend' && Array.isArray(normalized.uiCopy)
+            ? normalized.uiCopy
+                .map(item => ({
+                  context: typeof item?.context === 'string' && item.context.trim() ? item.context.trim() : 'General',
+                  element: typeof item?.element === 'string' && item.element.trim() ? item.element.trim() : '-',
+                  textTh: typeof item?.textTh === 'string' ? item.textTh.trim() : '',
+                  textEn: typeof item?.textEn === 'string' ? item.textEn.trim() : ''
+                }))
+                .filter(item => item.textTh || item.textEn)
+            : [];
+
+          return {
+            storyPoints,
+            summary,
+            missingPoints,
+            architectureSections,
+            stateDiagramMermaid,
+            uiCopy,
+            apiContract,
+            subtasks,
+            codeSnippet: typeof normalized.codeSnippet === 'string' && normalized.codeSnippet.trim()
+              ? normalized.codeSnippet
+              : '// ไม่มีโค้ดตัวอย่างจาก AI',
+            acceptanceCriteria,
+            testCases
+          };
+        },
+        selectStyle(style) {
+          this.selectedStyle = style;
+          this.showToast(`สลับการแสดงผลเป็น ${style === 'frontend' ? 'Frontend Style 🎨' : 'Backend Style ⚙️'} เรียบร้อยแล้ว`);
+        },
+        async analyzeTicket() {
+          if (!this.jiraInput.trim()) return;
+          this.jiraInput = this.jiraInput.trim().toUpperCase();
+          this.jiraFetchError = '';
+          if (this.analysisTimer) clearInterval(this.analysisTimer);
+          this.isAnalyzing = true;
+          this.analysisStepIndex = 0;
+
+          this.analysisTimer = setInterval(() => {
+            if (this.analysisStepIndex < this.analysisSteps.length - 1) {
+              this.analysisStepIndex++;
+            }
+          }, 320);
+
+          try {
+            const { issue, parent } = await this.fetchJiraIssue(this.jiraInput);
+            const mappedTicket = this.mapJiraIssueToTicket(issue, this.jiraInput, parent);
+            this.jiraTicketOverrides[this.jiraInput] = mappedTicket;
+            const aiSpec = await this.analyzeWithAI(mappedTicket);
+            const normalizedSpec = this.normalizeAiSpecForUi(aiSpec, mappedTicket, this.selectedStyle);
+            if (!this.ticketSpecs[mappedTicket.key]) {
+              this.ticketSpecs[mappedTicket.key] = {};
+            }
+            this.ticketSpecs[mappedTicket.key][this.selectedStyle] = normalizedSpec;
+            this.jiraConnectionState = 'connected';
+            this.jiraConnectionDetail = 'Connected and loaded issue from Jira Cloud';
+            this.analysisStepIndex = this.analysisSteps.length - 1;
+            this.showToast(`วิเคราะห์ ${this.jiraInput} ด้วย ${this.currentModelObj.name} สำเร็จแล้ว`);
+          } catch (error) {
+            this.jiraFetchError = error.message || 'ไม่สามารถวิเคราะห์การ์ดด้วย AI ได้';
+            this.jiraConnectionState = 'error';
+            this.jiraConnectionDetail = this.jiraFetchError;
+            this.showToast(this.jiraFetchError);
+          } finally {
+            if (this.analysisTimer) {
+              clearInterval(this.analysisTimer);
+              this.analysisTimer = null;
+            }
+            this.isAnalyzing = false;
+          }
+        },
+        saveRawAndReanalyze() {
+          this.showRawModal = false;
+          this.analyzeTicket();
+        },
+        cycleTestStatus(tc) {
+          const order = ['PENDING', 'PASS', 'FAIL'];
+          const idx = order.indexOf(tc.status);
+          tc.status = order[(idx + 1) % order.length];
+        },
+        buildUiCopyText(uiCopy) {
+          return (Array.isArray(uiCopy) ? uiCopy : [])
+            .map(item => `[${item.context}] ${item.element}\n  TH: ${item.textTh || '-'}\n  EN: ${item.textEn || '-'}`)
+            .join('\n\n');
+        },
+        copyUiCopy() {
+          const text = this.buildUiCopyText(this.activeStyleSpec?.uiCopy);
+          if (!text) {
+            this.showToast('ยังไม่มี UI Copy ให้คัดลอก');
+            return;
+          }
+          this.copyTextToClipboard(text, 'คัดลอก UI Copy ทั้งหมดแล้ว');
+        },
+        buildApiContractText(api) {          const lines = [`${api.method} ${api.endpoint}`, api.description];
+          if (api.requestBody) lines.push('', 'Request Body:', api.requestBody);
+          if (api.responseBody) lines.push('', 'Response Body:', api.responseBody);
+          if (api.errorCodes.length > 0) {
+            lines.push('', 'Error Codes:');
+            api.errorCodes.forEach(err => lines.push(`- ${err.exceptionClass} (HTTP ${err.httpCode || '-'}): ${err.condition}`));
+          }
+          return lines.join('\n');
+        },
+        copyApiContract(api) {
+          this.copyTextToClipboard(this.buildApiContractText(api), `คัดลอก Contract ของ ${api.method} ${api.endpoint} แล้ว`);
+        },
+        copyJiraMarkdown() {
+          if (!this.hasAnalysisResult) {
+            this.showToast('ยังไม่มีผลวิเคราะห์ให้คัดลอก');
+            return;
+          }
+          this.copyTextToClipboard(this.generatedMarkdown, `คัดลอก Markdown ของ ${this.currentTicket.key} สำหรับแปะใน Jira แล้ว`);
+        },
+        exportTestCasesCsv() {
+          if (!this.hasAnalysisResult || !this.activeStyleSpec) {
+            this.showToast('ยังไม่มีผลวิเคราะห์สำหรับส่งออก CSV');
+            return;
+          }
+          const rows = [
+            ['Test ID', 'Type', 'Title', 'Steps', 'Expected Result', 'Status'],
+            ...this.activeStyleSpec.testCases.map(tc => [
+              tc.id,
+              tc.type,
+              `"${tc.title.replace(/"/g, '""')}"`,
+              `"${tc.steps.replace(/"/g, '""')}"`,
+              `"${tc.expected.replace(/"/g, '""')}"`,
+              tc.status
+            ])
+          ];
+          const csvContent = '\uFEFF' + rows.map(r => r.join(',')).join('\n');
+          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', `${this.currentTicket.key}_${this.selectedStyle}_QA_TestCases.csv`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          this.showToast(`ดาวน์โหลดไฟล์ CSV สำหรับ QA (${this.currentTicket.key}) เรียบร้อยแล้ว`);
+        },
+        pushToJiraSimulation() {
+          if (!this.hasAnalysisResult) {
+            this.showToast('ยังไม่มีผลวิเคราะห์จากการ์ด');
+            return;
+          }
+          this.showToast(`โหมด Read-only: รอบนี้ยังไม่เปิดการอัปเดตกลับ Jira (การ์ด ${this.currentTicket.key})`);
+        },
+        copyTextToClipboard(text, message) {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+              this.showToast(message);
+            }).catch(() => {
+              this.fallbackCopy(text, message);
+            });
+          } else {
+            this.fallbackCopy(text, message);
+          }
+        },
+        fallbackCopy(text, message) {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          try {
+            document.execCommand('copy');
+            this.showToast(message);
+          } catch (e) {
+            this.showToast('ไม่สามารถคัดลอกอัตโนมัติได้ กรุณาคัดลอกจากแท็บ Markdown');
+          }
+          document.body.removeChild(ta);
+        },
+        showToast(msg) {
+          this.toastMessage = msg;
+          if (this.toastTimer) clearTimeout(this.toastTimer);
+          this.toastTimer = setTimeout(() => {
+            this.toastMessage = '';
+          }, 3200);
+        }
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

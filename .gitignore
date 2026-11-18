@@ -1,0 +1,25 @@
+# Secrets / config
+.env
+
+# Logs
+*.log
+caddy.log
+proxy.log
+auth.log
+backend.log
+
+# Backups
+backups/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# node
+node_modules/
+npm-debug.log*

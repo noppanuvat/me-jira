@@ -1,0 +1,43 @@
+{
+    admin off
+}
+
+jira.meturr.online {
+    @notHealth not path /health
+    forward_auth @notHealth localhost:3002 {
+        uri /verify
+    }
+    root * /home/meturr/agent_1_workspaces/jira-ai
+    file_server
+
+    reverse_proxy /api/* localhost:8787
+    reverse_proxy /health localhost:8787
+}
+
+jira-create.meturr.online {
+    @notHealth not path /health
+    forward_auth @notHealth localhost:3002 {
+        uri /verify
+    }
+    root * /home/meturr/agent_1_workspaces/jira-doc-creator/frontend/dist
+    file_server
+
+    reverse_proxy /api/* localhost:3001
+    reverse_proxy /health localhost:3001
+}
+
+meturr.online {
+    @notAuth path /login* /logout /health /api/*
+    handle @notAuth {
+        reverse_proxy localhost:3002
+    }
+    @auth not path /login* /logout /health /api/*
+    forward_auth @auth localhost:3002 {
+        uri /verify
+    }
+    handle @auth {
+        root * /home/meturr/agent_1_workspaces/meturr-portal
+        file_server
+        encode gzip
+    }
+}
